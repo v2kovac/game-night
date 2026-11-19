@@ -1,0 +1,12 @@
+.env*
+*.pem
+*.p12
+*.key
+*serviceAccount*.json
+*service-account*.json
+*firebase-adminsdk*.json
+.firebase/
+*-debug.log*
+node_modules/
+.openai/
+dist/
