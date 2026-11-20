@@ -3,10 +3,7 @@
 #guestsField,#playerField{display:grid;gap:8px}
 textarea,select{font:inherit;color:var(--ink);min-height:44px;background:white;border:1px solid #81948b;border-radius:8px;padding:8px}
 textarea:focus-visible,select:focus-visible{outline:3px solid #166eb6;outline-offset:2px}
-.legend,.avatars{display:flex;justify-content:center;align-items:center;flex-wrap:wrap;gap:3px}
-.legend{justify-content:flex-start;gap:6px}
-.legend span{padding:4px 8px;border-radius:8px;font-size:.85rem}
-.avatars{max-width:100%;gap:2px;line-height:1;min-height:1em}
+.avatars{display:flex;justify-content:center;align-items:center;flex-wrap:wrap;max-width:100%;gap:2px;line-height:1;min-height:1em}
 .avatar{font-size:.63rem;padding:2px;border-radius:5px;border:1px solid #17363842}
 .overflow-count{font-size:.61rem}
 .day{min-height:62px}
@@ -16,3 +13,9 @@ textarea:focus-visible,select:focus-visible{outline:3px solid #166eb6;outline-of
 
 #daySummary{margin-top:16px;padding:16px;background:white;border:1px solid var(--border);border-radius:16px}
 #daySummary h2{margin:0 0 10px;font:600 1.35rem Georgia,serif}
+
+@media(max-width:799px){
+  .avatars{width:100%}
+  .avatars span{width:calc((100% - 2px)/2);text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .avatar{padding:2px 0;letter-spacing:-.025em}
+}

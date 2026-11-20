@@ -12,6 +12,7 @@ const longDate=day=>label(new Date(day+'T12:00:00'),{weekday:'long',month:'long'
 let store, data, active=0, selected='', pending=0, roomId='', creating=false;
 let errorCount=0, roomInfo, brush='yes';
 const cells=new Map();
+const visibleInitials=5;
 function el(tag,text,cls){
   const node=document.createElement(tag);
   if(text!==undefined) node.textContent=text;
@@ -45,13 +46,13 @@ function refresh(){
     b.className=['day',heat,date===today?'today':'',scheduled?'scheduled':''].join(' ');
     const list=b.lastChild;
     list.replaceChildren();
-    for(const {name,status} of answered.slice(0,3)){
+    for(const {name,status} of answered.slice(0,visibleInitials)){
       const chip=el('span',initials(name),'avatar '+status);
       chip.title=name+' · '+names[status];list.append(chip);
     }
     if(vote(myVoteId(),date)) b.dataset.own=marks[vote(myVoteId(),date)];
     else delete b.dataset.own;
-    if(answered.length>3) list.append(el('span','+'+(answered.length-3),'overflow-count'));
+    if(answered.length>visibleInitials) list.append(el('span','+'+(answered.length-visibleInitials),'overflow-count'));
     b.setAttribute('aria-label',[longDate(date),date===today?'today':'',scheduled?'confirmed game night':'',`${count} of ${members.length} available`,...answered.map(p=>p.name+' '+names[p.status])].filter(Boolean).join(', '));
   }
   $('identity').textContent=(members.find(p=>p.uid===myVoteId())?.name||'You')+' · '+members.length+(members.length===1?' player':' players');
