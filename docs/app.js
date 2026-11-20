@@ -10,7 +10,7 @@ const monthKeys=months.map(d=>dateKey(d).slice(0,7));
 const label=(d,opts)=>d.toLocaleDateString('en-US',opts);
 const longDate=day=>label(new Date(day+'T12:00:00'),{weekday:'long',month:'long',day:'numeric'});
 let store, data, active=0, selected='', pending=0, roomId='', creating=false;
-let errorCount=0, roomInfo;
+let errorCount=0, roomInfo, brush='';
 const cells=new Map();
 function el(tag,text,cls){
   const node=document.createElement(tag);
@@ -23,10 +23,11 @@ function button(text,fn,cls){
   node.type='button';node.onclick=fn;return node;
 }
 function vote(uid,day){return data.votes[uid+'_'+day] || ''}
+function myVoteId(){return data.members[store.uid]?.slot==='0'?data.host:store.uid}
 function players(){
   if(!data.roster) return Object.entries(data.members).map(([uid, member])=>({uid,name:member.name}));
   const claimed=new Map(Object.entries(data.members).map(([uid,member])=>[member.slot,uid]));
-  return data.roster.map((name,index)=>({name:typeof name==='string'?name:'Player '+(index+1),uid:claimed.get(String(index))}));
+  return data.roster.map((name,index)=>({name:typeof name==='string'?name:'Player '+(index+1),uid:index===0?data.host:claimed.get(String(index))}));
 }
 function initials(name){
   const words=name.trim().split(/\s+/);
@@ -48,10 +49,12 @@ function refresh(){
       const chip=el('span',initials(name),'avatar '+status);
       chip.title=name+' · '+names[status];list.append(chip);
     }
+    if(brush && vote(myVoteId(),date)) b.dataset.own=marks[vote(myVoteId(),date)];
+    else delete b.dataset.own;
     if(answered.length>3) list.append(el('span','+'+(answered.length-3),'overflow-count'));
     b.setAttribute('aria-label',[longDate(date),date===today?'today':'',scheduled?'confirmed game night':'',`${count} of ${members.length} available`,...answered.map(p=>p.name+' '+names[p.status])].filter(Boolean).join(', '));
   }
-  $('identity').textContent=(members.find(p=>p.uid===store.uid)?.name||'You')+' · '+members.length+(members.length===1?' player':' players');
+  $('identity').textContent=(members.find(p=>p.uid===myVoteId())?.name||'You')+' · '+members.length+(members.length===1?' player':' players');
   if(data.night>=today) $('identity').textContent+=' · ★ Game night '+longDate(data.night);
   if($('detail').open) renderDetails();
 }
@@ -68,16 +71,21 @@ function renderDetails(){
   const rows=$('roster');rows.replaceChildren();
   for(const {uid,name} of players()){
     const row=el('div',undefined,'row'), status=uid?vote(uid,selected):'';
-    row.append(el('span',name+(uid===store.uid?' (you)':'')),el('small',names[status]||'Unanswered',status));
+    row.append(el('span',name+(uid===myVoteId()?' (you)':'')),el('small',names[status]||'Unanswered',status));
     rows.append(row);
   }
-  const current=vote(store.uid,selected)||'clear';
+  const current=vote(myVoteId(),selected)||'clear';
   for(const choice of $('brushes').children) choice.setAttribute('aria-pressed',String(choice.dataset.status===current));
   const same=data.night===selected;
-  $('confirm').hidden=data.host!==store.uid;
+  $('confirm').hidden=data.host!==myVoteId();
   $('confirm').textContent=same?'Unconfirm game night':data.night>=today?'Move game night here':'Confirm game night';
 }
 function chooseDay(date){
+  if(brush){
+    const status=brush;
+    save(()=>store.mark(date,status,myVoteId()));
+    return;
+  }
   selected=date;$('detailSave').hidden=true;renderDetails();$('detail').showModal();
 }
 function switchMonth(index){
@@ -87,8 +95,19 @@ function switchMonth(index){
 }
 function build(){
   for(const [key,name] of Object.entries(names)){
-    const b=button(marks[key]+' '+name,()=>{const date=selected;save(()=>store.mark(date,key))},'pill '+key);
+    const b=button(marks[key]+' '+name,()=>{const date=selected;save(()=>store.mark(date,key,myVoteId()))},'pill '+key);
     b.dataset.status=key;$('brushes').append(b);
+  }
+  for(const [key,name] of [['','View details'],...Object.entries(names)]){
+    const control=button(key?marks[key]+' '+name:name,()=>{
+      brush=key;
+      for(const choice of $('quickMark').children) choice.setAttribute('aria-pressed',String(choice.dataset.status===brush));
+      $('calendarHelp').textContent=brush?'Tap any dates to save your choice. Select View details to see individual answers.':'Tap a date to see who can play and add your answer.';
+      refresh();
+    },'pill '+key);
+    control.dataset.status=key;
+    control.setAttribute('aria-pressed',String(!key));
+    $('quickMark').append(control);
   }
   months.forEach((start,index)=>{
     const month=el('section',undefined,'month');
@@ -145,7 +164,7 @@ async function start(){
   roomId=hash.slice(5)||(new URLSearchParams(location.search).has('new')?'':saved);
   creating=!roomId;
   if(creating) roomId=crypto.randomUUID().replaceAll('-','');
-  store=await (await import('./cloud.js?v=3')).connect(firebaseConfig,roomId);
+  store=await (await import('./cloud.js?v=4')).connect(firebaseConfig,roomId);
   if(!creating){
     roomInfo=await store.roomInfo();
     if(!roomInfo) throw Error('This table could not be found. Check your invite link.');
@@ -165,8 +184,8 @@ async function showJoin(){
     const claimed=new Set(await store.claimedSlots());
     $('player').replaceChildren(new Option('Select your name',''));
     for(const [index,name] of roomInfo.roster.entries()){
-      if(index===0 || claimed.has(String(index))) continue;
-      $('player').add(new Option(name,String(index)));
+      if(index!==0 && claimed.has(String(index))) continue;
+      $('player').add(new Option(index===0?name+' (host)':name,String(index)));
     }
     if($('player').options.length===1){
       $('notice').textContent='All roster spots have already been claimed.';
@@ -221,7 +240,7 @@ $('join').onsubmit=async e=>{
 $('confirm').onclick=()=>{const night=data.night===selected?'':selected;$('detail').close();save(()=>store.schedule(night))};
 $('close').onclick=()=>$('detail').close();
 $('done').onclick=()=>$('invite').close();
-$('share').onclick=()=>{$('inviteLink').value=inviteUrl();$('copy').textContent='Copy link';$('invite').showModal()};
+$('share').onclick=()=>{$('inviteHelp').textContent=data.roster?'Anyone with this link can select the host and edit the host’s votes or confirm the date.':'Anyone with this link can join and see availability.';$('inviteLink').value=inviteUrl();$('copy').textContent='Copy link';$('invite').showModal()};
 $('copy').onclick=async()=>{try{await navigator.clipboard.writeText($('inviteLink').value);$('copy').textContent='Copied'}catch{$('inviteLink').select();$('copy').textContent='Select and copy the link'}};
 window.addEventListener('hashchange',()=>{if(roomId && location.hash!=='#room='+roomId) location.reload()});
 function checkDate(){if(!pending && dateKey(new Date())!==today) location.reload()}

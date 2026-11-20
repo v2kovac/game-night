@@ -12,7 +12,7 @@ export async function connect(config, roomId) {
   const room = doc(db,'rooms',roomId);
   const member = doc(room,'members',user.uid);
   const people = collection(room,'members');
-  const vote = date => doc(room,'months',date.slice(0,7),'votes',user.uid+'_'+date);
+  const vote = (date,uid) => doc(room,'months',date.slice(0,7),'votes',uid+'_'+date);
   return {
     uid:user.uid,
     async roomInfo(){return (await getDoc(room)).data()},
@@ -25,7 +25,7 @@ export async function connect(config, roomId) {
       if(roster) batch.set(room,{host:user.uid,night:'',roster});
       if(slot===undefined) batch.set(member,{name});
       else {
-        batch.set(doc(room,'claims',slot),{uid:user.uid});
+        if(slot!=='0' || roster) batch.set(doc(room,'claims',slot),{uid:user.uid});
         batch.set(member,{slot});
       }
       await batch.commit();
@@ -50,9 +50,9 @@ export async function connect(config, roomId) {
       }
       return ()=>stops.forEach(stop=>stop());
     },
-    async mark(date,status){
-      if(status==='clear') await deleteDoc(vote(date));
-      else await setDoc(vote(date),{uid:user.uid,date,status});
+    async mark(date,status,uid=user.uid){
+      if(status==='clear') await deleteDoc(vote(date,uid));
+      else await setDoc(vote(date,uid),{uid,date,status});
     },
     async schedule(date){await updateDoc(room,{night:date})}
   };

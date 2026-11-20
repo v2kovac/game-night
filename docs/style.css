@@ -12,3 +12,6 @@ textarea:focus-visible,select:focus-visible{outline:3px solid #166eb6;outline-of
 .day{min-height:62px}
 #brushes{flex-wrap:wrap;margin:10px 0}
 #detailSave{margin:6px 0}
+
+#quickMark{display:flex;flex-wrap:wrap;gap:7px;margin:12px 0}
+.day[data-own]::before{content:attr(data-own);position:absolute;left:3px;top:1px;font-size:.7rem;color:#173638}

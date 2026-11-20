@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#152f30"><meta name="referrer" content="no-referrer">
-<title>Table Night · Game night calendar</title><link rel="stylesheet" href="style.css?v=3">
+<title>Table Night · Game night calendar</title><link rel="stylesheet" href="style.css?v=4">
 </head>
 <body>
 <header><div class="bar"><div class="brand"><i class="die" aria-hidden="true">⚄</i>Table Night</div><button id="share" hidden>Invite friends</button></div></header>
@@ -17,7 +17,7 @@
 <button class="dark" id="joinButton">Join table</button>
 </form>
 <section id="board" hidden aria-label="Availability calendar">
-<div class="controls"><p>Tap a date to see who can play and add your answer. Initials only appear for people who answered.</p>
+<div class="controls"><p id="calendarHelp">Tap a date to see who can play and add your answer.</p><div id="quickMark" aria-label="Calendar action"></div>
 <div class="legend"><span class="yes">✓ Available</span><span class="maybe">? Maybe</span><span class="no">× Unavailable</span></div></div>
 <div class="monthSwitch" aria-label="Choose month"></div>
 <div id="months"></div>
@@ -25,6 +25,6 @@
 </section>
 </main>
 <dialog id="detail" aria-labelledby="detailTitle"><button id="close" class="close" aria-label="Close details">×</button><p class="eyebrow">YOUR TABLE</p><h2 id="detailTitle"></h2><div id="roster"></div><div id="brushes" aria-label="Your availability"></div><p id="detailSave" role="status" hidden></p><button id="confirm" class="dark"></button></dialog>
-<dialog id="invite" aria-labelledby="inviteTitle"><h2 id="inviteTitle">Invite your friends</h2><p>Anyone with this link can join and see the table’s availability.</p><input aria-label="Invite link" readonly id="inviteLink"><button class="dark" id="copy">Copy link</button><button id="done">Done</button></dialog>
-<script type="module" src="app.js?v=3"></script>
+<dialog id="invite" aria-labelledby="inviteTitle"><h2 id="inviteTitle">Invite your friends</h2><p id="inviteHelp"></p><input aria-label="Invite link" readonly id="inviteLink"><button class="dark" id="copy">Copy link</button><button id="done">Done</button></dialog>
+<script type="module" src="app.js?v=4"></script>
 </body></html>
