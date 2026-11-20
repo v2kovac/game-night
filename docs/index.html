@@ -3,23 +3,28 @@
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#152f30"><meta name="referrer" content="no-referrer">
-<title>Table Night · Game night calendar</title><link rel="stylesheet" href="style.css">
+<title>Table Night · Game night calendar</title><link rel="stylesheet" href="style.css?v=3">
 </head>
 <body>
 <header><div class="bar"><div class="brand"><i class="die" aria-hidden="true">⚄</i>Table Night</div><button id="share" hidden>Invite friends</button></div></header>
 <main>
 <div class="intro"><p class="eyebrow">THE GAME NIGHT CALENDAR</p><h1>Find your next <br><em>game night.</em></h1><p>Mark the days you can play, then compare calendars with your table.</p></div>
 <div class="note" id="notice" role="status">Opening calendar…</div>
-<form id="join" hidden><label for="name">Your name</label><input id="name" required maxlength="32" autocomplete="given-name"><button class="dark" id="joinButton">Join table</button></form>
+<form id="join" hidden>
+<label id="nameLabel" for="name">Your name</label><input id="name" maxlength="32" autocomplete="given-name">
+<div id="guestsField" hidden><label for="guests">Other players</label><textarea id="guests" rows="4" placeholder="One name per line"></textarea></div>
+<div id="playerField" hidden><label for="player">Who are you?</label><select id="player"></select></div>
+<button class="dark" id="joinButton">Join table</button>
+</form>
 <section id="board" hidden aria-label="Availability calendar">
-<nav aria-label="Calendar view"><button id="mine" aria-pressed="true">My availability</button><button id="group" aria-pressed="false">Group calendar</button></nav>
-<div class="controls"><div id="paint"><p>Choose a status, then tap dates.</p><div id="brushes"></div></div><div id="groupHelp" hidden><p>Each date shows available players / total players. Tap for the guest list.</p></div></div>
+<div class="controls"><p>Tap a date to see who can play and add your answer. Initials only appear for people who answered.</p>
+<div class="legend"><span class="yes">✓ Available</span><span class="maybe">? Maybe</span><span class="no">× Unavailable</span></div></div>
 <div class="monthSwitch" aria-label="Choose month"></div>
 <div id="months"></div>
-<div class="foot"><span id="identity"></span><span id="save" role="status"></span></div>
+<div class="foot"><span id="identity"></span><a href="?new=1">New table</a><span id="save" role="status"></span></div>
 </section>
 </main>
-<dialog id="detail" aria-labelledby="detailTitle"><button id="close" class="close" aria-label="Close details">×</button><p class="eyebrow">YOUR TABLE</p><h2 id="detailTitle"></h2><div id="roster"></div><button id="confirm" class="dark"></button></dialog>
+<dialog id="detail" aria-labelledby="detailTitle"><button id="close" class="close" aria-label="Close details">×</button><p class="eyebrow">YOUR TABLE</p><h2 id="detailTitle"></h2><div id="roster"></div><div id="brushes" aria-label="Your availability"></div><p id="detailSave" role="status" hidden></p><button id="confirm" class="dark"></button></dialog>
 <dialog id="invite" aria-labelledby="inviteTitle"><h2 id="inviteTitle">Invite your friends</h2><p>Anyone with this link can join and see the table’s availability.</p><input aria-label="Invite link" readonly id="inviteLink"><button class="dark" id="copy">Copy link</button><button id="done">Done</button></dialog>
-<script type="module" src="app.js?v=2"></script>
+<script type="module" src="app.js?v=3"></script>
 </body></html>

@@ -1,6 +1,6 @@
 import {initializeApp} from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js';
 import {getAuth,signInAnonymously} from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js';
-import {initializeFirestore,doc,collection,getDoc,setDoc,updateDoc,deleteDoc,onSnapshot,writeBatch} from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js';
+import {initializeFirestore,doc,collection,getDoc,getDocs,setDoc,updateDoc,deleteDoc,onSnapshot,writeBatch} from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js';
 
 export async function connect(config, roomId) {
   const app = initializeApp(config);
@@ -15,12 +15,19 @@ export async function connect(config, roomId) {
   const vote = date => doc(room,'months',date.slice(0,7),'votes',user.uid+'_'+date);
   return {
     uid:user.uid,
-    async exists(){return (await getDoc(room)).exists()},
+    async roomInfo(){return (await getDoc(room)).data()},
     async joined(){return (await getDoc(member)).exists()},
-    async join(name,create){
+    async claimedSlots(){
+      return (await getDocs(collection(room,'claims'))).docs.map(d=>d.id);
+    },
+    async join({name,roster,slot}){
       const batch = writeBatch(db);
-      if(create) batch.set(room,{host:user.uid,night:''});
-      batch.set(member,{name});
+      if(roster) batch.set(room,{host:user.uid,night:'',roster});
+      if(slot===undefined) batch.set(member,{name});
+      else {
+        batch.set(doc(room,'claims',slot),{uid:user.uid});
+        batch.set(member,{slot});
+      }
       await batch.commit();
     },
     watch(months, publish, fail){
@@ -32,7 +39,7 @@ export async function connect(config, roomId) {
       }
       const stops=[
         onSnapshot(room,s=>{Object.assign(data,s.data());changed('room')},fail),
-        onSnapshot(people,s=>{data.members=Object.fromEntries(s.docs.map(d=>[d.id,d.data().name]));changed('people')},fail)
+        onSnapshot(people,s=>{data.members=Object.fromEntries(s.docs.map(d=>[d.id,d.data()]));changed('people')},fail)
       ];
       for(const month of months){
         stops.push(onSnapshot(collection(room,'months',month,'votes'),snap=>{

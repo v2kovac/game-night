@@ -9,8 +9,8 @@ const months=[0,1].map(i=>new Date(now.getFullYear(),now.getMonth()+i,1,12));
 const monthKeys=months.map(d=>dateKey(d).slice(0,7));
 const label=(d,opts)=>d.toLocaleDateString('en-US',opts);
 const longDate=day=>label(new Date(day+'T12:00:00'),{weekday:'long',month:'long',day:'numeric'});
-let store, data, view='mine', brush='yes', active=0, selected='', pending=0, roomId='', creating=false;
-let errorCount=0;
+let store, data, active=0, selected='', pending=0, roomId='', creating=false;
+let errorCount=0, roomInfo;
 const cells=new Map();
 function el(tag,text,cls){
   const node=document.createElement(tag);
@@ -23,47 +23,62 @@ function button(text,fn,cls){
   node.type='button';node.onclick=fn;return node;
 }
 function vote(uid,day){return data.votes[uid+'_'+day] || ''}
+function players(){
+  if(!data.roster) return Object.entries(data.members).map(([uid, member])=>({uid,name:member.name}));
+  const claimed=new Map(Object.entries(data.members).map(([uid,member])=>[member.slot,uid]));
+  return data.roster.map((name,index)=>({name:typeof name==='string'?name:'Player '+(index+1),uid:claimed.get(String(index))}));
+}
+function initials(name){
+  const words=name.trim().split(/\s+/);
+  return (words.length===1?Array.from(words[0]).slice(0,2).join(''):words[0][0]+words.at(-1)[0]).toUpperCase();
+}
 function refresh(){
   if(!data) return;
   $('board').hidden=false;
-  $('paint').hidden=view!=='mine';$('groupHelp').hidden=view!=='group';
-  for(const id of ['mine','group']) $(id).setAttribute('aria-pressed',String(view===id));
-  Array.from($('brushes').children).forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.status===brush)));
-  const members=Object.keys(data.members);
+  const members=players();
   for(const [date,b] of cells){
-    const mine=vote(store.uid,date);
-    const count=members.filter(uid=>vote(uid,date)==='yes').length;
+    const answered=members.map(({uid,name})=>({name,status:uid?vote(uid,date):''})).filter(p=>p.status);
+    const count=answered.filter(p=>p.status==='yes').length;
     const scheduled=data.night===date;
     const heat=count?'heat'+Math.ceil(3*count/members.length):'';
-    b.className=['day',view==='mine'?mine:heat,date===today?'today':'',scheduled?'scheduled':''].join(' ');
-    b.lastChild.textContent=view==='mine'?(marks[mine]||''):`${count}/${members.length}`;
-    b.setAttribute('aria-label',[longDate(date),date===today?'today':'',scheduled?'confirmed game night':'',view==='mine'?(names[mine]||'Unanswered'):`${count} of ${members.length} available`].filter(Boolean).join(', '));
+    b.className=['day',heat,date===today?'today':'',scheduled?'scheduled':''].join(' ');
+    const list=b.lastChild;
+    list.replaceChildren();
+    for(const {name,status} of answered.slice(0,3)){
+      const chip=el('span',initials(name),'avatar '+status);
+      chip.title=name+' · '+names[status];list.append(chip);
+    }
+    if(answered.length>3) list.append(el('span','+'+(answered.length-3),'overflow-count'));
+    b.setAttribute('aria-label',[longDate(date),date===today?'today':'',scheduled?'confirmed game night':'',`${count} of ${members.length} available`,...answered.map(p=>p.name+' '+names[p.status])].filter(Boolean).join(', '));
   }
-  $('identity').textContent=(data.members[store.uid]||'You')+' · '+members.length+(members.length===1?' player':' players');
+  $('identity').textContent=(members.find(p=>p.uid===store.uid)?.name||'You')+' · '+members.length+(members.length===1?' player':' players');
   if(data.night>=today) $('identity').textContent+=' · ★ Game night '+longDate(data.night);
   if($('detail').open) renderDetails();
 }
 async function save(action){
   const before=errorCount;
-  pending++;$('save').textContent='Saving…';
-  try{await action()}catch{errorCount++;$('save').textContent='Couldn’t save. Check your connection and try again.'}
-  finally{pending--;if(!pending && before===errorCount) $('save').textContent=firebaseConfig?'Saved':'Saved on this device'}
+  const status=$('detail').open?$('detailSave'):$('save');
+  status.hidden=false;
+  pending++;status.textContent='Saving…';
+  try{await action()}catch{errorCount++;status.textContent='Couldn’t save. Check your connection and try again.'}
+  finally{pending--;if(!pending && before===errorCount) status.textContent=firebaseConfig?'Saved':'Saved on this device'}
 }
 function renderDetails(){
   $('detailTitle').textContent=longDate(selected);
   const rows=$('roster');rows.replaceChildren();
-  for(const [uid,name] of Object.entries(data.members).sort((a,b)=>a[1].localeCompare(b[1]))){
-    const row=el('div',undefined,'row'), status=vote(uid,selected);
+  for(const {uid,name} of players()){
+    const row=el('div',undefined,'row'), status=uid?vote(uid,selected):'';
     row.append(el('span',name+(uid===store.uid?' (you)':'')),el('small',names[status]||'Unanswered',status));
     rows.append(row);
   }
+  const current=vote(store.uid,selected)||'clear';
+  for(const choice of $('brushes').children) choice.setAttribute('aria-pressed',String(choice.dataset.status===current));
   const same=data.night===selected;
   $('confirm').hidden=data.host!==store.uid;
   $('confirm').textContent=same?'Unconfirm game night':data.night>=today?'Move game night here':'Confirm game night';
 }
 function chooseDay(date){
-  if(view==='mine'){save(()=>store.mark(date,brush));return}
-  selected=date;renderDetails();$('detail').showModal();
+  selected=date;$('detailSave').hidden=true;renderDetails();$('detail').showModal();
 }
 function switchMonth(index){
   active=index;
@@ -72,7 +87,7 @@ function switchMonth(index){
 }
 function build(){
   for(const [key,name] of Object.entries(names)){
-    const b=button(marks[key]+' '+name,()=>{brush=key;refresh()},'pill '+key);
+    const b=button(marks[key]+' '+name,()=>{const date=selected;save(()=>store.mark(date,key))},'pill '+key);
     b.dataset.status=key;$('brushes').append(b);
   }
   months.forEach((start,index)=>{
@@ -84,7 +99,7 @@ function build(){
     const date=new Date(start);
     while(date.getMonth()===start.getMonth()){
       const key=dateKey(date), b=button('',()=>chooseDay(key),'day');
-      b.append(el('span',String(date.getDate())),el('small'));
+      b.append(el('span',String(date.getDate())),el('span',undefined,'avatars'));
       b.disabled=key<today;cells.set(key,b);grid.append(b);
       date.setDate(date.getDate()+1);
     }
@@ -97,8 +112,9 @@ function preview(){
   const key='table-night-preview-v1';
   let local;
   try{local=JSON.parse(localStorage.getItem(key))}catch{}
+  if(local) local.members=Object.fromEntries(Object.entries(local.members).map(([uid,member])=>[uid,typeof member==='string'?{name:member}:member]));
   if(!local){
-    local={members:{you:'You',ada:'Ada',sam:'Sam'},host:'you',votes:{},night:''};
+    local={members:{you:{name:'You'},ada:{name:'Ada'},sam:{name:'Sam'}},host:'you',votes:{},night:''};
     for(const day of cells.keys()){
       const dow=new Date(day+'T12:00:00').getDay();
       if([4,5,6].includes(dow)) local.votes['ada_'+day]=dow===4?'maybe':'yes';
@@ -126,45 +142,82 @@ async function start(){
   if(hash && !/^room=[0-9a-f]{32}$/.test(hash)) throw Error('This invite link is incomplete. Ask the host to resend it.');
   let saved;
   try{saved=localStorage.getItem('table-night-room')}catch{}
-  roomId=hash.slice(5)||saved;
+  roomId=hash.slice(5)||(new URLSearchParams(location.search).has('new')?'':saved);
   creating=!roomId;
   if(creating) roomId=crypto.randomUUID().replaceAll('-','');
-  store=await (await import('./cloud.js?v=2')).connect(firebaseConfig,roomId);
-  if(!creating && !(await store.exists())) throw Error('This table could not be found. Check your invite link.');
-  if(!creating && await store.joined()){remember();watch();return}
-  $('notice').textContent=creating?'Create a table and invite your friends.':'Enter your name to join this table.';
-  $('joinButton').textContent=creating?'Create table':'Join table';$('join').hidden=false;
+  store=await (await import('./cloud.js?v=3')).connect(firebaseConfig,roomId);
+  if(!creating){
+    roomInfo=await store.roomInfo();
+    if(!roomInfo) throw Error('This table could not be found. Check your invite link.');
+    if(await store.joined()){remember();watch();return}
+  }
+  await showJoin();
+}
+async function showJoin(){
+  const fixed=Array.isArray(roomInfo?.roster);
+  $('name').hidden=fixed;$('nameLabel').hidden=fixed;$('name').required=!fixed;
+  $('guestsField').hidden=!creating;$('playerField').hidden=!fixed;
+  $('player').required=fixed;
+  $('notice').textContent=creating?'Set your roster before sharing the invite.':fixed?'Choose your name from the roster.':'Enter your name to join this table.';
+  $('joinButton').textContent=creating?'Create table':'Join table';
+  $('joinButton').disabled=false;
+  if(fixed){
+    const claimed=new Set(await store.claimedSlots());
+    $('player').replaceChildren(new Option('Select your name',''));
+    for(const [index,name] of roomInfo.roster.entries()){
+      if(index===0 || claimed.has(String(index))) continue;
+      $('player').add(new Option(name,String(index)));
+    }
+    if($('player').options.length===1){
+      $('notice').textContent='All roster spots have already been claimed.';
+      $('joinButton').disabled=true;
+    }
+  }
+  $('join').hidden=false;
 }
 function remember(){
   // A table is usable even if the browser blocks local storage.
   try{localStorage.setItem('table-night-room',roomId)}catch{}
-  try{history.replaceState(null,'','#room='+roomId)}catch{}
+  try{history.replaceState(null,'',inviteUrl())}catch{}
 }
 function inviteUrl(){
   const url=new URL(location.href);
+  url.searchParams.delete('new');
   url.hash='room='+roomId;
   return url.href;
 }
 $('join').onsubmit=async e=>{
-  e.preventDefault();const name=$('name').value.trim();
-  if(!name){$('name').focus();return}
+  e.preventDefault();
+  const name=$('name').value.trim();
+  const roster=creating?[name,...$('guests').value.split(/\r?\n/).map(n=>n.trim()).filter(Boolean)]:undefined;
+  const slot=creating?'0':roomInfo?.roster?$('player').value:undefined;
+  if(roster && (roster.length>24 || roster.some(n=>!n||n.length>32) || new Set(roster.map(n=>n.toLowerCase())).size!==roster.length)){
+    $('notice').textContent='Use up to 24 distinct names, each 1–32 characters long.';
+    return;
+  }
+  if(slot===undefined && !name){$('name').focus();return}
+  if(slot==='') return;
   $('joinButton').disabled=true;
-  const action=creating?'create':'join';
   $('notice').textContent=creating?'Creating your table…':'Joining the table…';
   try{
-    await store.join(name,creating);
+    await store.join({name,roster,slot});
   }catch(err){
-    const code=typeof err?.code==='string' && /^[a-z/-]+$/.test(err.code)?err.code:'unknown';
-    $('notice').textContent=`Couldn’t ${action} the table (${code}). Try again.`;
-    return;
-  }finally{
+    if(!creating && roomInfo?.roster && err.code==='permission-denied'){
+      try{
+        await showJoin();
+        if(!$('joinButton').disabled) $('notice').textContent='That spot may have been claimed. Choose from the updated list.';
+        return;
+      }catch{}
+    }
     $('joinButton').disabled=false;
+    const code=typeof err?.code==='string' && /^[a-z/-]+$/.test(err.code)?err.code:'unknown';
+    $('notice').textContent=`Couldn’t ${creating?'create':'join'} the table (${code}). Try again.`;
+    return;
   }
   creating=false;
   remember();
   watch();
 };
-for(const id of ['mine','group']) $(id).onclick=()=>{view=id;refresh()};
 $('confirm').onclick=()=>{const night=data.night===selected?'':selected;$('detail').close();save(()=>store.schedule(night))};
 $('close').onclick=()=>$('detail').close();
 $('done').onclick=()=>$('invite').close();

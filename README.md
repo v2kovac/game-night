@@ -13,7 +13,7 @@ Run `python3 -m http.server 8000 --directory docs` from this directory and visit
 3. Create the default Cloud Firestore database in production mode. Open its Rules tab, replace the default rules with the contents of `firestore.rules`, and publish them. Alternatively, from this checkout and with an authenticated Firebase CLI, run `firebase deploy --only firestore:rules --project YOUR_PROJECT_ID`.
 4. Replace `null` in `docs/config.js` with the public web configuration object. Commit that file. Keep the generated key restricted to Firebase-related APIs. Never add a service-account JSON, private key, OAuth token, or GitHub token.
 5. Publish the repository to GitHub and select Settings → Pages → Deploy from a branch → main → /docs → Save. GitHub Free supports Pages for public repositories. To create the repo from this checkout with an authenticated GitHub CLI, run `gh repo create game-night --public --source=. --remote=origin --push`.
-6. Open the Pages site, enter your name and choose **Create table**. **Invite friends** copies a random room link. Open that link in another browser to join with a second name and verify that votes sync in both directions.
+6. Open the Pages site, enter your name and choose **Create table** after listing your players. Guests select one unclaimed name, and Firestore binds that spot to their browser identity. **Invite friends** copies a random room link. Open that link in another browser to join with a second name and verify that votes sync in both directions.
 
 ## Access and storage
 
