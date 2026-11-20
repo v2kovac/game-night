@@ -112,7 +112,7 @@ function chooseDay(date){
   const uid=myVoteId();
   const key=uid+'_'+date;
   const current=pendingVotes.get(key)?.status ?? vote(uid,date);
-  const change={status:current || brush==='clear'?'':brush};
+  const change={status:current===brush || brush==='clear'?'':brush};
   pendingVotes.set(key,change);
   save(async()=>{
     try{await store.mark(date,change.status||'clear',uid)}
@@ -129,7 +129,7 @@ function build(){
     const control=button(marks[key]+' '+name,()=>{
       brush=key;
       for(const choice of $('quickMark').children) choice.setAttribute('aria-pressed',String(choice.dataset.status===brush));
-      $('calendarHelp').textContent=brush==='clear'?'Tap a date to clear your answer.':`Tap a blank date to mark ${names[brush].toLowerCase()}. Tap your answer to clear it.`;
+      $('calendarHelp').textContent=brush==='clear'?'Tap a date to clear your answer.':`Tap a date to mark ${names[brush].toLowerCase()}. Tap a matching answer to clear it.`;
       refresh();
     },'pill '+key);
     control.dataset.status=key;
