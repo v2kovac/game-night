@@ -49,24 +49,25 @@ function refresh(){
       const chip=el('span',initials(name),'avatar '+status);
       chip.title=name+' · '+names[status];list.append(chip);
     }
-    if(brush && vote(myVoteId(),date)) b.dataset.own=marks[vote(myVoteId(),date)];
+    if(vote(myVoteId(),date)) b.dataset.own=marks[vote(myVoteId(),date)];
     else delete b.dataset.own;
     if(answered.length>3) list.append(el('span','+'+(answered.length-3),'overflow-count'));
     b.setAttribute('aria-label',[longDate(date),date===today?'today':'',scheduled?'confirmed game night':'',`${count} of ${members.length} available`,...answered.map(p=>p.name+' '+names[p.status])].filter(Boolean).join(', '));
   }
   $('identity').textContent=(members.find(p=>p.uid===myVoteId())?.name||'You')+' · '+members.length+(members.length===1?' player':' players');
   if(data.night>=today) $('identity').textContent+=' · ★ Game night '+longDate(data.night);
-  if($('detail').open) renderDetails();
+  if(selected) renderDetails();
 }
 async function save(action){
   const before=errorCount;
-  const status=$('detail').open?$('detailSave'):$('save');
+  const status=$('save');
   status.hidden=false;
   pending++;status.textContent='Saving…';
   try{await action()}catch{errorCount++;status.textContent='Couldn’t save. Check your connection and try again.'}
   finally{pending--;if(!pending && before===errorCount) status.textContent=firebaseConfig?'Saved':'Saved on this device'}
 }
 function renderDetails(){
+  $('daySummary').hidden=false;
   $('detailTitle').textContent=longDate(selected);
   const rows=$('roster');rows.replaceChildren();
   for(const {uid,name} of players()){
@@ -74,19 +75,15 @@ function renderDetails(){
     row.append(el('span',name+(uid===myVoteId()?' (you)':'')),el('small',names[status]||'Unanswered',status));
     rows.append(row);
   }
-  const current=vote(myVoteId(),selected)||'clear';
-  for(const choice of $('brushes').children) choice.setAttribute('aria-pressed',String(choice.dataset.status===current));
   const same=data.night===selected;
   $('confirm').hidden=data.host!==myVoteId();
   $('confirm').textContent=same?'Unconfirm game night':data.night>=today?'Move game night here':'Confirm game night';
 }
 function chooseDay(date){
-  if(brush){
-    const status=brush;
-    save(()=>store.mark(date,status,myVoteId()));
-    return;
-  }
-  selected=date;$('detailSave').hidden=true;renderDetails();$('detail').showModal();
+  selected=date;
+  renderDetails();
+  const status=brush;
+  save(()=>store.mark(date,status,myVoteId()));
 }
 function switchMonth(index){
   active=index;
@@ -95,14 +92,10 @@ function switchMonth(index){
 }
 function build(){
   for(const [key,name] of Object.entries(names)){
-    const b=button(marks[key]+' '+name,()=>{const date=selected;save(()=>store.mark(date,key,myVoteId()))},'pill '+key);
-    b.dataset.status=key;$('brushes').append(b);
-  }
-  for(const [key,name] of [['','View details'],...Object.entries(names)]){
-    const control=button(key?marks[key]+' '+name:name,()=>{
+    const control=button(marks[key]+' '+name,()=>{
       brush=key;
       for(const choice of $('quickMark').children) choice.setAttribute('aria-pressed',String(choice.dataset.status===brush));
-      $('calendarHelp').textContent=brush?`Tap dates to mark ${brush==='clear'?'them unanswered':names[brush].toLowerCase()}.`:'Tap a date to see who can play and add your answer.';
+      $('calendarHelp').textContent=`Tap dates to mark ${brush==='clear'?'them unanswered':names[brush].toLowerCase()}.`;
       refresh();
     },'pill '+key);
     control.dataset.status=key;
@@ -237,8 +230,7 @@ $('join').onsubmit=async e=>{
   remember();
   watch();
 };
-$('confirm').onclick=()=>{const night=data.night===selected?'':selected;$('detail').close();save(()=>store.schedule(night))};
-$('close').onclick=()=>$('detail').close();
+$('confirm').onclick=()=>{const night=data.night===selected?'':selected;save(()=>store.schedule(night))};
 $('done').onclick=()=>$('invite').close();
 $('share').onclick=()=>{$('inviteHelp').textContent=data.roster?'Anyone with this link can select the host and edit the host’s votes or confirm the date.':'Anyone with this link can join and see availability.';$('inviteLink').value=inviteUrl();$('copy').textContent='Copy link';$('invite').showModal()};
 $('copy').onclick=async()=>{try{await navigator.clipboard.writeText($('inviteLink').value);$('copy').textContent='Copied'}catch{$('inviteLink').select();$('copy').textContent='Select and copy the link'}};

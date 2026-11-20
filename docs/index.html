@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#152f30"><meta name="referrer" content="no-referrer">
-<title>Table Night · Game night calendar</title><link rel="stylesheet" href="style.css?v=4">
+<title>Table Night · Game night calendar</title><link rel="stylesheet" href="style.css?v=6">
 </head>
 <body>
 <header><div class="bar"><div class="brand"><i class="die" aria-hidden="true">⚄</i>Table Night</div><button id="share" hidden>Invite friends</button></div></header>
@@ -21,10 +21,10 @@
 <div class="legend"><span class="yes">✓ Available</span><span class="maybe">? Maybe</span><span class="no">× Unavailable</span></div></div>
 <div class="monthSwitch" aria-label="Choose month"></div>
 <div id="months"></div>
+<section id="daySummary" aria-labelledby="detailTitle" hidden><h2 id="detailTitle"></h2><div id="roster"></div><button id="confirm" type="button" class="dark"></button></section>
 <div class="foot"><span id="identity"></span><a href="?new=1">New table</a><span id="save" role="status"></span></div>
 </section>
 </main>
-<dialog id="detail" aria-labelledby="detailTitle"><button id="close" class="close" aria-label="Close details">×</button><p class="eyebrow">YOUR TABLE</p><h2 id="detailTitle"></h2><div id="roster"></div><div id="brushes" aria-label="Your availability"></div><p id="detailSave" role="status" hidden></p><button id="confirm" class="dark"></button></dialog>
 <dialog id="invite" aria-labelledby="inviteTitle"><h2 id="inviteTitle">Invite your friends</h2><p id="inviteHelp"></p><input aria-label="Invite link" readonly id="inviteLink"><button class="dark" id="copy">Copy link</button><button id="done">Done</button></dialog>
-<script type="module" src="app.js?v=5"></script>
+<script type="module" src="app.js?v=6"></script>
 </body></html>
