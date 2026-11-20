@@ -1,6 +1,6 @@
 import {initializeApp} from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js';
 import {getAuth,signInAnonymously} from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js';
-import {initializeFirestore,doc,collection,getDoc,runTransaction,setDoc,updateDoc,deleteDoc,onSnapshot,writeBatch} from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js';
+import {initializeFirestore,doc,collection,getDoc,getDocFromServer,runTransaction,setDoc,updateDoc,deleteDoc,onSnapshot,writeBatch} from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js';
 
 export async function connect(config, roomId) {
   const app = initializeApp(config);
@@ -18,18 +18,44 @@ export async function connect(config, roomId) {
     async roomInfo(){return (await getDoc(room)).data()},
     async joined(){return (await getDoc(member)).exists()},
     async join({name,roster,slot}){
-      if(slot!==undefined && slot!=='0'){
-        const claim=doc(room,'claims',slot);
-        await runTransaction(db,async transaction=>{
-          if(!(await transaction.get(claim)).exists()) transaction.set(claim,{uid:user.uid});
-          transaction.set(member,{slot});
-        });
-        return;
+      let stage='membership write';
+      const writeSelection=async()=>{
+        if(slot!==undefined && slot!=='0'){
+          const claim=doc(room,'claims',slot);
+          stage='roster lookup';
+          const existing=await getDocFromServer(claim);
+          stage='membership write';
+          if(existing.exists()){
+            await setDoc(member,{slot});
+            return;
+          }
+          stage='first selection';
+          await runTransaction(db,async transaction=>{
+            // Recheck inside the transaction so simultaneous joins keep one vote identity.
+            if(!(await transaction.get(claim)).exists()) transaction.set(claim,{uid:user.uid});
+            transaction.set(member,{slot});
+          });
+          return;
+        }
+        const batch = writeBatch(db);
+        if(roster) batch.set(room,{host:user.uid,night:'',roster});
+        batch.set(member,slot===undefined?{name}:{slot});
+        await batch.commit();
+      };
+
+      try{
+        try{await writeSelection()}
+        catch(err){
+          if(roster || !['permission-denied','unauthenticated'].includes(err.code)) throw err;
+          stage='session refresh';
+          // Keep the existing browser identity and refresh only its credentials.
+          await user.getIdToken(true);
+          if(auth.currentUser?.uid!==user.uid) throw err;
+          await writeSelection();
+        }
+      }catch(err){
+        throw Object.assign(new Error('Unable to save player selection'),{code:err.code,stage});
       }
-      const batch = writeBatch(db);
-      if(roster) batch.set(room,{host:user.uid,night:'',roster});
-      batch.set(member,slot===undefined?{name}:{slot});
-      await batch.commit();
     },
     watch(months, fixedRoster, publish, fail){
       const data={members:{},claims:{},votes:{},host:'',night:''};

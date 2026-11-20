@@ -191,7 +191,7 @@ async function start(){
   roomId=hash.slice(5)||(new URLSearchParams(location.search).has('new')?'':saved);
   creating=!roomId;
   if(creating) roomId=crypto.randomUUID().replaceAll('-','');
-  store=await (await import('./cloud.js?v=8')).connect(firebaseConfig,roomId);
+  store=await (await import('./cloud.js?v=14')).connect(firebaseConfig,roomId);
   if(!creating){
     roomInfo=await store.roomInfo();
     if(!roomInfo) throw Error('This table could not be found. Check your invite link.');
@@ -245,7 +245,8 @@ $('join').onsubmit=async e=>{
   }catch(err){
     $('joinButton').disabled=false;
     const code=typeof err?.code==='string' && /^[a-z/-]+$/.test(err.code)?err.code:'unknown';
-    $('notice').textContent=`Couldn’t ${creating?'create':'join'} the table (${code}). Try again.`;
+    const stage=err.stage?` · ${err.stage}`:'';
+    $('notice').textContent=`Couldn’t ${creating?'create':'join'} the table (${code}${stage}). Try again.`;
     return;
   }
   if(roster) roomInfo={roster};
