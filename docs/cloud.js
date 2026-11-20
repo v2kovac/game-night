@@ -1,6 +1,6 @@
 import {initializeApp} from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js';
 import {getAuth,signInAnonymously} from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js';
-import {initializeFirestore,doc,collection,getDoc,getDocs,setDoc,updateDoc,deleteDoc,onSnapshot,writeBatch} from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js';
+import {initializeFirestore,doc,collection,getDoc,runTransaction,setDoc,updateDoc,deleteDoc,onSnapshot,writeBatch} from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js';
 
 export async function connect(config, roomId) {
   const app = initializeApp(config);
@@ -17,30 +17,37 @@ export async function connect(config, roomId) {
     uid:user.uid,
     async roomInfo(){return (await getDoc(room)).data()},
     async joined(){return (await getDoc(member)).exists()},
-    async claimedSlots(){
-      return (await getDocs(collection(room,'claims'))).docs.map(d=>d.id);
-    },
     async join({name,roster,slot}){
+      if(slot!==undefined && slot!=='0'){
+        const claim=doc(room,'claims',slot);
+        await runTransaction(db,async transaction=>{
+          if(!(await transaction.get(claim)).exists()) transaction.set(claim,{uid:user.uid});
+          transaction.set(member,{slot});
+        });
+        return;
+      }
       const batch = writeBatch(db);
       if(roster) batch.set(room,{host:user.uid,night:'',roster});
-      if(slot===undefined) batch.set(member,{name});
-      else {
-        if(slot!=='0' || roster) batch.set(doc(room,'claims',slot),{uid:user.uid});
-        batch.set(member,{slot});
-      }
+      batch.set(member,slot===undefined?{name}:{slot});
       await batch.commit();
     },
-    watch(months, publish, fail){
-      const data={members:{},votes:{},host:'',night:''};
+    watch(months, fixedRoster, publish, fail){
+      const data={members:{},claims:{},votes:{},host:'',night:''};
       const ready=new Set(), monthly={};
       function changed(key){
         ready.add(key);
-        if(ready.size===months.length+2) publish(data);
+        if(ready.size===months.length+(fixedRoster?3:2)) publish(data);
       }
       const stops=[
         onSnapshot(room,s=>{Object.assign(data,s.data());changed('room')},fail),
         onSnapshot(people,s=>{data.members=Object.fromEntries(s.docs.map(d=>[d.id,d.data()]));changed('people')},fail)
       ];
+      if(fixedRoster){
+        stops.push(onSnapshot(collection(room,'claims'),s=>{
+          data.claims=Object.fromEntries(s.docs.map(d=>[d.id,d.data().uid]));
+          changed('claims');
+        },fail));
+      }
       for(const month of months){
         stops.push(onSnapshot(collection(room,'months',month,'votes'),snap=>{
           monthly[month]=Object.fromEntries(snap.docs.map(d=>[d.id,d.data().status]));

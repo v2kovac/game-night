@@ -24,11 +24,14 @@ function button(text,fn,cls){
   node.type='button';node.onclick=fn;return node;
 }
 function vote(uid,day){return data.votes[uid+'_'+day] || ''}
-function myVoteId(){return data.members[store.uid]?.slot==='0'?data.host:store.uid}
+function myVoteId(){
+  const slot=data.members[store.uid]?.slot;
+  if(slot===undefined) return store.uid;
+  return slot==='0'?data.host:data.claims[slot];
+}
 function players(){
   if(!data.roster) return Object.entries(data.members).map(([uid, member])=>({uid,name:member.name}));
-  const claimed=new Map(Object.entries(data.members).map(([uid,member])=>[member.slot,uid]));
-  return data.roster.map((name,index)=>({name:typeof name==='string'?name:'Player '+(index+1),uid:index===0?data.host:claimed.get(String(index))}));
+  return data.roster.map((name,index)=>({name:typeof name==='string'?name:'Player '+(index+1),uid:index===0?data.host:data.claims[String(index)]}));
 }
 function initials(name){
   const words=name.trim().split(/\s+/);
@@ -37,6 +40,7 @@ function initials(name){
 function refresh(){
   if(!data) return;
   $('board').hidden=false;
+  $('switchPlayer').hidden=!data.roster;
   const members=players();
   for(const [date,b] of cells){
     const answered=members.map(({uid,name})=>({name,status:uid?vote(uid,date):''})).filter(p=>p.status);
@@ -144,7 +148,7 @@ function preview(){
 }
 function watch(){
   $('join').hidden=true;$('notice').textContent='Loading your table…';
-  store.watch(monthKeys,next=>{
+  store.watch(monthKeys,Array.isArray(roomInfo?.roster),next=>{
     data=next;$('notice').textContent='';$('share').hidden=false;refresh();
   },()=>{$('notice').textContent='Sync stopped. Reload to reconnect.';$('board').hidden=true});
 }
@@ -158,11 +162,11 @@ async function start(){
   roomId=hash.slice(5)||(new URLSearchParams(location.search).has('new')?'':saved);
   creating=!roomId;
   if(creating) roomId=crypto.randomUUID().replaceAll('-','');
-  store=await (await import('./cloud.js?v=4')).connect(firebaseConfig,roomId);
+  store=await (await import('./cloud.js?v=8')).connect(firebaseConfig,roomId);
   if(!creating){
     roomInfo=await store.roomInfo();
     if(!roomInfo) throw Error('This table could not be found. Check your invite link.');
-    if(await store.joined()){remember();watch();return}
+    if(await store.joined() && !(roomInfo.roster && new URLSearchParams(location.search).has('choose'))){remember();watch();return}
   }
   await showJoin();
 }
@@ -175,15 +179,9 @@ async function showJoin(){
   $('joinButton').textContent=creating?'Create table':'Join table';
   $('joinButton').disabled=false;
   if(fixed){
-    const claimed=new Set(await store.claimedSlots());
     $('player').replaceChildren(new Option('Select your name',''));
     for(const [index,name] of roomInfo.roster.entries()){
-      if(index!==0 && claimed.has(String(index))) continue;
       $('player').add(new Option(index===0?name+' (host)':name,String(index)));
-    }
-    if($('player').options.length===1){
-      $('notice').textContent='All roster spots have already been claimed.';
-      $('joinButton').disabled=true;
     }
   }
   $('join').hidden=false;
@@ -196,6 +194,7 @@ function remember(){
 function inviteUrl(){
   const url=new URL(location.href);
   url.searchParams.delete('new');
+  url.searchParams.delete('choose');
   url.hash='room='+roomId;
   return url.href;
 }
@@ -215,25 +214,24 @@ $('join').onsubmit=async e=>{
   try{
     await store.join({name,roster,slot});
   }catch(err){
-    if(!creating && roomInfo?.roster && err.code==='permission-denied'){
-      try{
-        await showJoin();
-        if(!$('joinButton').disabled) $('notice').textContent='That spot may have been claimed. Choose from the updated list.';
-        return;
-      }catch{}
-    }
     $('joinButton').disabled=false;
     const code=typeof err?.code==='string' && /^[a-z/-]+$/.test(err.code)?err.code:'unknown';
     $('notice').textContent=`Couldn’t ${creating?'create':'join'} the table (${code}). Try again.`;
     return;
   }
+  if(roster) roomInfo={roster};
   creating=false;
   remember();
   watch();
 };
+$('switchPlayer').onclick=()=>{
+  const url=new URL(inviteUrl());
+  url.searchParams.set('choose','1');
+  location.assign(url);
+};
 $('confirm').onclick=()=>{const night=data.night===selected?'':selected;save(()=>store.schedule(night))};
 $('done').onclick=()=>$('invite').close();
-$('share').onclick=()=>{$('inviteHelp').textContent=data.roster?'Anyone with this link can select the host and edit the host’s votes or confirm the date.':'Anyone with this link can join and see availability.';$('inviteLink').value=inviteUrl();$('copy').textContent='Copy link';$('invite').showModal()};
+$('share').onclick=()=>{$('inviteHelp').textContent=data.roster?'Anyone with this link can select any name and edit that player’s availability. Selecting the host also lets them confirm the date.':'Anyone with this link can join and see availability.';$('inviteLink').value=inviteUrl();$('copy').textContent='Copy link';$('invite').showModal()};
 $('copy').onclick=async()=>{try{await navigator.clipboard.writeText($('inviteLink').value);$('copy').textContent='Copied'}catch{$('inviteLink').select();$('copy').textContent='Select and copy the link'}};
 window.addEventListener('hashchange',()=>{if(roomId && location.hash!=='#room='+roomId) location.reload()});
 function checkDate(){if(!pending && dateKey(new Date())!==today) location.reload()}

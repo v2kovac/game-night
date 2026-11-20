@@ -7,11 +7,17 @@ service cloud.firestore {
       function member() {
         return signed() && exists(/databases/$(database)/documents/rooms/$(room)/members/$(request.auth.uid));
       }
+      function selectedSlot() {
+        return get(/databases/$(database)/documents/rooms/$(room)/members/$(request.auth.uid)).data.get('slot','');
+      }
       function usesHostSlot() {
-        return member() && get(/databases/$(database)/documents/rooms/$(room)/members/$(request.auth.uid)).data.get('slot','') == '0';
+        return member() && selectedSlot() == '0';
       }
       function voteOwner() {
-        return usesHostSlot() ? get(root()).data.host : request.auth.uid;
+        let slot = selectedSlot();
+        return slot == '' ? request.auth.uid
+          : slot == '0' ? get(root()).data.host
+          : get(claimPath(slot)).data.uid;
       }
       function validDate(day) {
         return day is string && day.matches('[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])');
@@ -41,18 +47,21 @@ service cloud.firestore {
           && (slot != '0' || getAfter(root()).data.host == request.auth.uid);
       }
       match /members/{uid} {
+        function rosterSelection() {
+          let slot = request.resource.data.slot;
+          return request.resource.data.keys().hasOnly(['slot']) && validSlot(slot)
+            && (slot == '0' || existsAfter(claimPath(slot)));
+        }
         allow get: if signed() && (request.auth.uid == uid || member());
         allow list: if member();
         allow create: if signed() && request.auth.uid == uid
           && getAfter(root()).data.host is string
           && (('roster' in getAfter(root()).data)
-            ? (request.resource.data.keys().hasOnly(['slot'])
-              && validSlot(request.resource.data.slot)
-              && (request.resource.data.slot == '0'
-                || getAfter(claimPath(request.resource.data.slot)).data.uid == uid))
+            ? rosterSelection()
             : (request.resource.data.keys().hasOnly(['name'])
               && request.resource.data.name is string
               && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 32));
+        allow update: if signed() && request.auth.uid == uid && rosterSelection();
       }
       match /months/{month}/votes/{vote} {
         allow read: if member();
