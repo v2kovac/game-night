@@ -1,13 +1,14 @@
 import {initializeApp} from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js';
 import {getAuth,signInAnonymously} from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js';
-import {getFirestore,doc,collection,getDoc,setDoc,updateDoc,deleteDoc,onSnapshot,writeBatch} from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js';
+import {initializeFirestore,doc,collection,getDoc,setDoc,updateDoc,deleteDoc,onSnapshot,writeBatch} from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js';
 
 export async function connect(config, roomId) {
   const app = initializeApp(config);
   const auth = getAuth(app);
   await auth.authStateReady();
   const user = auth.currentUser || (await signInAnonymously(auth)).user;
-  const db = getFirestore(app);
+  // Avoid streaming responses being buffered by mobile browsers or proxies.
+  const db = initializeFirestore(app, {experimentalForceLongPolling:true});
   const room = doc(db,'rooms',roomId);
   const member = doc(room,'members',user.uid);
   const people = collection(room,'members');

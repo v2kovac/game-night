@@ -124,32 +124,51 @@ async function start(){
   if(!firebaseConfig){preview();return}
   const hash=location.hash.slice(1);
   if(hash && !/^room=[0-9a-f]{32}$/.test(hash)) throw Error('This invite link is incomplete. Ask the host to resend it.');
-  const saved=localStorage.getItem('table-night-room');
+  let saved;
+  try{saved=localStorage.getItem('table-night-room')}catch{}
   roomId=hash.slice(5)||saved;
   creating=!roomId;
   if(creating) roomId=crypto.randomUUID().replaceAll('-','');
-  store=await (await import('./cloud.js')).connect(firebaseConfig,roomId);
+  store=await (await import('./cloud.js?v=2')).connect(firebaseConfig,roomId);
   if(!creating && !(await store.exists())) throw Error('This table could not be found. Check your invite link.');
   if(!creating && await store.joined()){remember();watch();return}
   $('notice').textContent=creating?'Create a table and invite your friends.':'Enter your name to join this table.';
   $('joinButton').textContent=creating?'Create table':'Join table';$('join').hidden=false;
 }
 function remember(){
-  location.hash='room='+roomId;localStorage.setItem('table-night-room',roomId);
+  // A table is usable even if the browser blocks local storage.
+  try{localStorage.setItem('table-night-room',roomId)}catch{}
+  try{history.replaceState(null,'','#room='+roomId)}catch{}
+}
+function inviteUrl(){
+  const url=new URL(location.href);
+  url.hash='room='+roomId;
+  return url.href;
 }
 $('join').onsubmit=async e=>{
   e.preventDefault();const name=$('name').value.trim();
   if(!name){$('name').focus();return}
   $('joinButton').disabled=true;
-  try{await store.join(name,creating);remember();watch()}
-  catch{$('notice').textContent='Couldn’t join the table. Check the connection and Firestore rules.'}
-  finally{$('joinButton').disabled=false}
+  const action=creating?'create':'join';
+  $('notice').textContent=creating?'Creating your table…':'Joining the table…';
+  try{
+    await store.join(name,creating);
+  }catch(err){
+    const code=typeof err?.code==='string' && /^[a-z/-]+$/.test(err.code)?err.code:'unknown';
+    $('notice').textContent=`Couldn’t ${action} the table (${code}). Try again.`;
+    return;
+  }finally{
+    $('joinButton').disabled=false;
+  }
+  creating=false;
+  remember();
+  watch();
 };
 for(const id of ['mine','group']) $(id).onclick=()=>{view=id;refresh()};
 $('confirm').onclick=()=>{const night=data.night===selected?'':selected;$('detail').close();save(()=>store.schedule(night))};
 $('close').onclick=()=>$('detail').close();
 $('done').onclick=()=>$('invite').close();
-$('share').onclick=()=>{$('inviteLink').value=location.href;$('copy').textContent='Copy link';$('invite').showModal()};
+$('share').onclick=()=>{$('inviteLink').value=inviteUrl();$('copy').textContent='Copy link';$('invite').showModal()};
 $('copy').onclick=async()=>{try{await navigator.clipboard.writeText($('inviteLink').value);$('copy').textContent='Copied'}catch{$('inviteLink').select();$('copy').textContent='Select and copy the link'}};
 window.addEventListener('hashchange',()=>{if(roomId && location.hash!=='#room='+roomId) location.reload()});
 function checkDate(){if(!pending && dateKey(new Date())!==today) location.reload()}
