@@ -4,7 +4,7 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#152f30"><meta name="referrer" content="no-referrer">
 <link rel="icon" type="image/svg+xml" href="./table-night.svg">
-<title>Table Night · Game night calendar</title><link rel="stylesheet" href="style.css?v=9">
+<title>Table Night · Game night calendar</title><link rel="stylesheet" href="style.css?v=11">
 </head>
 <body>
 <header><div class="bar"><div class="brand"><i class="die" aria-hidden="true">⚄</i>Table Night</div><button id="share" hidden>Invite friends</button></div></header>
@@ -22,9 +22,12 @@
 <div class="monthSwitch" aria-label="Choose month"></div>
 <div id="months"></div>
 <section id="daySummary" aria-labelledby="detailTitle" hidden><h2 id="detailTitle"></h2><div id="roster"></div><button id="confirm" type="button" class="dark"></button></section>
+<section id="candidates" aria-labelledby="candidateTitle">
+<h2 id="candidateTitle">Candidate dates</h2><p>Fewest unavailable votes first, then earliest date.</p>
+<ol id="candidateDates"></ol></section>
 <div class="foot"><span id="identity"></span><button type="button" id="switchPlayer" hidden>Switch player</button><a href="?new=1">New table</a><span id="save" role="status"></span></div>
 </section>
 </main>
 <dialog id="invite" aria-labelledby="inviteTitle"><h2 id="inviteTitle">Invite your friends</h2><p id="inviteHelp"></p><input aria-label="Invite link" readonly id="inviteLink"><button class="dark" id="copy">Copy link</button><button id="done">Done</button></dialog>
-<script type="module" src="app.js?v=10"></script>
+<script type="module" src="app.js?v=11"></script>
 </body></html>

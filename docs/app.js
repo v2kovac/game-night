@@ -63,7 +63,27 @@ function refresh(){
   }
   $('identity').textContent=(members.find(p=>p.uid===myVoteId())?.name||'You')+' · '+members.length+(members.length===1?' player':' players');
   if(data.night>=today) $('identity').textContent+=' · ★ Game night '+longDate(data.night);
+  renderCandidates(members);
   if(selected) renderDetails();
+}
+function renderCandidates(members){
+  const candidates=[];
+  for(const date of cells.keys()){
+    if(date<today) continue;
+    const counts={yes:0,maybe:0,no:0,unanswered:0};
+    for(const {uid} of members){
+      const status=uid?vote(uid,date):'';
+      counts[status||'unanswered']++;
+    }
+    candidates.push({date,...counts});
+  }
+  candidates.sort((a,b)=>a.no-b.no || a.date.localeCompare(b.date));
+  $('candidateDates').replaceChildren(...candidates.slice(0,3).map(day=>{
+    const row=el('li');
+    row.append(el('strong',longDate(day.date)),el('span',
+      `${day.no} unavailable · ${day.yes} available · ${day.maybe} maybe · ${day.unanswered} unanswered`));
+    return row;
+  }));
 }
 async function save(action){
   const before=errorCount;
