@@ -10,7 +10,7 @@ const monthKeys=months.map(d=>dateKey(d).slice(0,7));
 const label=(d,opts)=>d.toLocaleDateString('en-US',opts);
 const longDate=day=>label(new Date(day+'T12:00:00'),{weekday:'long',month:'long',day:'numeric'});
 let store, data, active=0, selected='', pending=0, roomId='', creating=false;
-let errorCount=0, roomInfo, brush='yes';
+let errorCount=0, roomInfo, localSlot, brush='yes';
 const cells=new Map();
 const pendingVotes=new Map();
 const visibleInitials=5;
@@ -25,14 +25,9 @@ function button(text,fn,cls){
   node.type='button';node.onclick=fn;return node;
 }
 function vote(uid,day){return data.votes[uid+'_'+day] || ''}
-function myVoteId(){
-  const slot=data.members[store.uid]?.slot;
-  if(slot===undefined) return store.uid;
-  return slot==='0'?data.host:data.claims[slot];
-}
+function myVoteId(){return 'slot-'+localSlot}
 function players(){
-  if(!data.roster) return Object.entries(data.members).map(([uid, member])=>({uid,name:member.name}));
-  return data.roster.map((name,index)=>({name:typeof name==='string'?name:'Player '+(index+1),uid:index===0?data.host:data.claims[String(index)]}));
+  return data.roster.map((name,index)=>({name:typeof name==='string'?name:'Player '+(index+1),uid:'slot-'+index}));
 }
 function initials(name){
   const words=name.trim().split(/\s+/);
@@ -41,7 +36,7 @@ function initials(name){
 function refresh(){
   if(!data) return;
   $('board').hidden=false;
-  $('switchPlayer').hidden=!data.roster;
+  $('switchPlayer').hidden=!firebaseConfig;
   const members=players();
   const currentPlayer=myVoteId();
   for(const [date,b] of cells){
@@ -103,7 +98,7 @@ function renderDetails(){
     rows.append(row);
   }
   const same=data.night===selected;
-  $('confirm').hidden=data.host!==myVoteId();
+  $('confirm').hidden=localSlot!=='0';
   $('confirm').textContent=same?'Unconfirm game night':data.night>=today?'Move game night here':'Confirm game night';
 }
 function chooseDay(date){
@@ -112,10 +107,12 @@ function chooseDay(date){
   const uid=myVoteId();
   const key=uid+'_'+date;
   const current=pendingVotes.get(key)?.status ?? vote(uid,date);
+  if(!current && brush==='clear') return;
   const change={status:current===brush || brush==='clear'?'':brush};
+  const slot=localSlot;
   pendingVotes.set(key,change);
   save(async()=>{
-    try{await store.mark(date,change.status||'clear',uid)}
+    try{await store.mark(date,change.status||'clear',slot)}
     finally{if(pendingVotes.get(key)===change) pendingVotes.delete(key)}
   });
 }
@@ -155,29 +152,29 @@ function build(){
   switchMonth(0);
 }
 function preview(){
-  const key='table-night-preview-v1';
+  const key='table-night-preview-v2';
   let local;
   try{local=JSON.parse(localStorage.getItem(key))}catch{}
-  if(local) local.members=Object.fromEntries(Object.entries(local.members).map(([uid,member])=>[uid,typeof member==='string'?{name:member}:member]));
   if(!local){
-    local={members:{you:{name:'You'},ada:{name:'Ada'},sam:{name:'Sam'}},host:'you',votes:{},night:''};
+    local={roster:['You','Ada','Sam'],votes:{},night:''};
     for(const day of cells.keys()){
       const dow=new Date(day+'T12:00:00').getDay();
-      if([4,5,6].includes(dow)) local.votes['ada_'+day]=dow===4?'maybe':'yes';
-      if([0,5,6].includes(dow)) local.votes['sam_'+day]=dow===6?'maybe':'yes';
+      if([4,5,6].includes(dow)) local.votes['slot-1_'+day]=dow===4?'maybe':'yes';
+      if([0,5,6].includes(dow)) local.votes['slot-2_'+day]=dow===6?'maybe':'yes';
     }
   }
   function persist(next){localStorage.setItem(key,JSON.stringify(next));local=next;data=local;refresh()}
-  store={uid:'you',mark(day,status){
+  localSlot='0';
+  store={mark(day,status){
     const next=structuredClone(local);
-    if(status==='clear') delete next.votes['you_'+day];else next.votes['you_'+day]=status;
+    if(status==='clear') delete next.votes['slot-0_'+day];else next.votes['slot-0_'+day]=status;
     persist(next);
   },schedule(day){persist({...local,night:day})}};
   data=local;$('notice').textContent='Local preview · Ada and Sam are sample players. Changes stay in this browser.';refresh();
 }
 function watch(){
   $('join').hidden=true;$('notice').textContent='Loading your table…';
-  store.watch(monthKeys,Array.isArray(roomInfo?.roster),next=>{
+  store.watch(monthKeys,next=>{
     data=next;$('notice').textContent='';$('share').hidden=false;refresh();
   },()=>{$('notice').textContent='Sync stopped. Reload to reconnect.';$('board').hidden=true});
 }
@@ -191,13 +188,20 @@ async function start(){
   roomId=hash.slice(5)||(new URLSearchParams(location.search).has('new')?'':saved);
   creating=!roomId;
   if(creating) roomId=crypto.randomUUID().replaceAll('-','');
-  store=await (await import('./cloud.js?v=14')).connect(firebaseConfig,roomId);
+  store=await (await import('./cloud.js?v=15')).connect(firebaseConfig,roomId);
   if(!creating){
     roomInfo=await store.roomInfo();
     if(!roomInfo) throw Error('This table could not be found. Check your invite link.');
-    if(await store.joined() && !(roomInfo.roster && new URLSearchParams(location.search).has('choose'))){remember();watch();return}
+    if(!Array.isArray(roomInfo.roster)) throw Error('This table has no roster. Create a new table to send a fresh invite.');
+    if(!new URLSearchParams(location.search).has('choose')){
+      try{localSlot=localStorage.getItem('table-night-player:'+roomId)}catch{}
+      if(validSelection(localSlot)){remember();watch();return}
+    }
   }
   await showJoin();
+}
+function validSelection(slot){
+  return typeof slot==='string' && /^(0|[1-9][0-9]*)$/.test(slot) && Number(slot)<roomInfo.roster.length;
 }
 async function showJoin(){
   const fixed=Array.isArray(roomInfo?.roster);
@@ -217,7 +221,10 @@ async function showJoin(){
 }
 function remember(){
   // A table is usable even if the browser blocks local storage.
-  try{localStorage.setItem('table-night-room',roomId)}catch{}
+  try{
+    localStorage.setItem('table-night-room',roomId);
+    if(roomInfo?.roster) localStorage.setItem('table-night-player:'+roomId,localSlot);
+  }catch{}
   try{history.replaceState(null,'',inviteUrl())}catch{}
 }
 function inviteUrl(){
@@ -237,11 +244,17 @@ $('join').onsubmit=async e=>{
     return;
   }
   if(slot===undefined && !name){$('name').focus();return}
-  if(slot==='') return;
+  if(!creating && roomInfo?.roster){
+    if(!validSelection(slot)) return;
+    localSlot=slot;
+    remember();
+    watch();
+    return;
+  }
   $('joinButton').disabled=true;
   $('notice').textContent=creating?'Creating your table…':'Joining the table…';
   try{
-    await store.join({name,roster,slot});
+    await store.createTable(roster);
   }catch(err){
     $('joinButton').disabled=false;
     const code=typeof err?.code==='string' && /^[a-z/-]+$/.test(err.code)?err.code:'unknown';
@@ -249,7 +262,7 @@ $('join').onsubmit=async e=>{
     $('notice').textContent=`Couldn’t ${creating?'create':'join'} the table (${code}${stage}). Try again.`;
     return;
   }
-  if(roster) roomInfo={roster};
+  if(roster){roomInfo={roster};localSlot='0'}
   creating=false;
   remember();
   watch();
