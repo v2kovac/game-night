@@ -42,19 +42,20 @@ function refresh(){
   $('board').hidden=false;
   $('switchPlayer').hidden=!data.roster;
   const members=players();
+  const currentPlayer=myVoteId();
   for(const [date,b] of cells){
     const answered=members.map(({uid,name})=>({name,status:uid?vote(uid,date):''})).filter(p=>p.status);
     const count=answered.filter(p=>p.status==='yes').length;
     const scheduled=data.night===date;
-    const heat=count?'heat'+Math.ceil(3*count/members.length):'';
-    b.className=['day',heat,date===today?'today':'',scheduled?'scheduled':''].join(' ');
+    const ownStatus=vote(currentPlayer,date);
+    b.className=['day',ownStatus,date===today?'today':'',scheduled?'scheduled':''].join(' ');
     const list=b.lastChild;
     list.replaceChildren();
     for(const {name,status} of answered.slice(0,visibleInitials)){
       const chip=el('span',initials(name),'avatar '+status);
       chip.title=name+' · '+names[status];list.append(chip);
     }
-    if(vote(myVoteId(),date)) b.dataset.own=marks[vote(myVoteId(),date)];
+    if(ownStatus) b.dataset.own=marks[ownStatus];
     else delete b.dataset.own;
     if(answered.length>visibleInitials) list.append(el('span','+'+(answered.length-visibleInitials),'overflow-count'));
     b.setAttribute('aria-label',[longDate(date),date===today?'today':'',scheduled?'confirmed game night':'',`${count} of ${members.length} available`,...answered.map(p=>p.name+' '+names[p.status])].filter(Boolean).join(', '));
