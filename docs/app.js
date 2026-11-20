@@ -10,7 +10,7 @@ const monthKeys=months.map(d=>dateKey(d).slice(0,7));
 const label=(d,opts)=>d.toLocaleDateString('en-US',opts);
 const longDate=day=>label(new Date(day+'T12:00:00'),{weekday:'long',month:'long',day:'numeric'});
 let store, data, active=0, selected='', pending=0, roomId='', creating=false;
-let errorCount=0, roomInfo, brush='';
+let errorCount=0, roomInfo, brush='yes';
 const cells=new Map();
 function el(tag,text,cls){
   const node=document.createElement(tag);
@@ -102,11 +102,11 @@ function build(){
     const control=button(key?marks[key]+' '+name:name,()=>{
       brush=key;
       for(const choice of $('quickMark').children) choice.setAttribute('aria-pressed',String(choice.dataset.status===brush));
-      $('calendarHelp').textContent=brush?'Tap any dates to save your choice. Select View details to see individual answers.':'Tap a date to see who can play and add your answer.';
+      $('calendarHelp').textContent=brush?`Tap dates to mark ${brush==='clear'?'them unanswered':names[brush].toLowerCase()}.`:'Tap a date to see who can play and add your answer.';
       refresh();
     },'pill '+key);
     control.dataset.status=key;
-    control.setAttribute('aria-pressed',String(!key));
+    control.setAttribute('aria-pressed',String(key===brush));
     $('quickMark').append(control);
   }
   months.forEach((start,index)=>{
