@@ -12,6 +12,7 @@ const longDate=day=>label(new Date(day+'T12:00:00'),{weekday:'long',month:'long'
 let store, data, active=0, selected='', pending=0, roomId='', creating=false;
 let errorCount=0, roomInfo, brush='yes';
 const cells=new Map();
+const pendingVotes=new Map();
 const visibleInitials=5;
 function el(tag,text,cls){
   const node=document.createElement(tag);
@@ -88,8 +89,15 @@ function renderDetails(){
 function chooseDay(date){
   selected=date;
   renderDetails();
-  const status=brush;
-  save(()=>store.mark(date,status,myVoteId()));
+  const uid=myVoteId();
+  const key=uid+'_'+date;
+  const current=pendingVotes.get(key)?.status ?? vote(uid,date);
+  const change={status:current || brush==='clear'?'':brush};
+  pendingVotes.set(key,change);
+  save(async()=>{
+    try{await store.mark(date,change.status||'clear',uid)}
+    finally{if(pendingVotes.get(key)===change) pendingVotes.delete(key)}
+  });
 }
 function switchMonth(index){
   active=index;
@@ -101,7 +109,7 @@ function build(){
     const control=button(marks[key]+' '+name,()=>{
       brush=key;
       for(const choice of $('quickMark').children) choice.setAttribute('aria-pressed',String(choice.dataset.status===brush));
-      $('calendarHelp').textContent=`Tap dates to mark ${brush==='clear'?'them unanswered':names[brush].toLowerCase()}.`;
+      $('calendarHelp').textContent=brush==='clear'?'Tap a date to clear your answer.':`Tap a blank date to mark ${names[brush].toLowerCase()}. Tap your answer to clear it.`;
       refresh();
     },'pill '+key);
     control.dataset.status=key;
