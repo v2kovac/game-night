@@ -77,7 +77,7 @@ function renderCandidates(members){
     }
     candidates.push({date,...counts});
   }
-  candidates.sort((a,b)=>a.no-b.no || a.date.localeCompare(b.date));
+  candidates.sort((a,b)=>a.no-b.no || b.yes-a.yes || b.maybe-a.maybe || a.date.localeCompare(b.date));
   $('candidateDates').replaceChildren(...candidates.slice(0,3).map(day=>{
     const row=el('li');
     row.append(el('strong',longDate(day.date)),el('span',
